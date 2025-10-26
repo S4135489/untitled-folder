@@ -1,39 +1,32 @@
+# page_2.py — Vaccination coverage (App2 SQL method)
+
 import pyhtml
 
 def get_page_html(form_data):
     print("Returning Vaccination Rates page")
 
-    db_path = "Database.db"  # make sure this is your correct file name
+    db_path = "immunisation.db"
 
-    # Dropdown data
+    # dropdown data
     antigens = [row[0] for row in pyhtml.get_results_from_query(db_path,
         "SELECT DISTINCT antigen FROM Vaccination ORDER BY antigen;")]
     years = [row[0] for row in pyhtml.get_results_from_query(db_path,
         "SELECT DISTINCT year FROM Vaccination ORDER BY year;")]
 
-    # Read user selections
     antigen = form_data.get("antigen", ["All"])[0]
     year = form_data.get("year", ["All"])[0]
 
-    # Build SQL — join with Country table to show full names
-    query = """
-        SELECT Country.name AS country_name, 
-               Vaccination.antigen, 
-               Vaccination.year, 
-               Vaccination.coverage
-        FROM Vaccination
-        JOIN Country ON Country.CountryID = Vaccination.country
-        WHERE 1=1
-    """
+    # build SQL
+    query = "SELECT country, antigen, year, coverage FROM Vaccination WHERE 1=1"
     if antigen != "All":
-        query += f" AND Vaccination.antigen = '{antigen}'"
+        query += f" AND antigen = '{antigen}'"
     if year != "All":
-        query += f" AND Vaccination.year = {year}"
-    query += " ORDER BY Country.name, Vaccination.antigen, Vaccination.year;"
+        query += f" AND year = {year}"
+    query += " ORDER BY country LIMIT 50;"
 
     results = pyhtml.get_results_from_query(db_path, query)
 
-    # Dropdown HTML generator
+    # dropdowns
     def make_options(vals, selected):
         html = '<option value="All">All</option>'
         for v in vals:
@@ -44,16 +37,12 @@ def get_page_html(form_data):
     antigen_options = make_options(antigens, antigen)
     year_options = make_options(years, year)
 
-    # Table rows
-    if results:
-        rows_html = "".join(
-            f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}%</td></tr>"
-            for r in results
-        )
-    else:
-        rows_html = "<tr><td colspan='4'>No data available</td></tr>"
+    rows_html = "".join(
+        f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}%</td></tr>"
+        for r in results
+    ) or "<tr><td colspan='4'>No data</td></tr>"
 
-    # HTML + CSS
+    # HTML
     return f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -88,10 +77,6 @@ def get_page_html(form_data):
                 color: white;
             }}
             tr:nth-child(even) {{ background: #f2f2f2; }}
-            label {{
-                font-weight: bold;
-                margin-right: 8px;
-            }}
         </style>
     </head>
     <body>
@@ -103,16 +88,11 @@ def get_page_html(form_data):
                 <a href="page_3.html">Improvements</a>
             </nav>
         </header>
-
         <h1>Vaccination Rates by Country</h1>
 
         <form method="get" action="/page_2.html">
-            <label for="antigen">Antigen:</label>
             <select name="antigen">{antigen_options}</select>
-
-            <label for="year">Year:</label>
             <select name="year">{year_options}</select>
-
             <input type="submit" value="Filter">
         </form>
 
