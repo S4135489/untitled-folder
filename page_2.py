@@ -1,5 +1,3 @@
-# page_2.py — Vaccination coverage (App2 SQL method)
-
 import pyhtml
 
 def get_page_html(form_data):
@@ -7,26 +5,37 @@ def get_page_html(form_data):
 
     db_path = "immunisation.db"
 
-    # dropdown data
+    # Dropdown data — using Vaccination table
     antigens = [row[0] for row in pyhtml.get_results_from_query(db_path,
         "SELECT DISTINCT antigen FROM Vaccination ORDER BY antigen;")]
     years = [row[0] for row in pyhtml.get_results_from_query(db_path,
         "SELECT DISTINCT year FROM Vaccination ORDER BY year;")]
+    countries = [row[0] for row in pyhtml.get_results_from_query(db_path,
+        "SELECT DISTINCT Country.name FROM Country ORDER BY Country.name;")]
 
     antigen = form_data.get("antigen", ["All"])[0]
     year = form_data.get("year", ["All"])[0]
+    country = form_data.get("country", ["All"])[0]
 
-    # build SQL
-    query = "SELECT country, antigen, year, coverage FROM Vaccination WHERE 1=1"
+    # build SQL — join Country for full names
+    query = """
+        SELECT Country.name, Vaccination.antigen, Vaccination.year, Vaccination.coverage
+        FROM Vaccination
+        JOIN Country ON Country.CountryID = Vaccination.country
+        WHERE 1=1
+    """
     if antigen != "All":
-        query += f" AND antigen = '{antigen}'"
+        query += f" AND Vaccination.antigen = '{antigen}'"
     if year != "All":
-        query += f" AND year = {year}"
-    query += " ORDER BY country LIMIT 50;"
+        query += f" AND Vaccination.year = {year}"
+    if country != "All":
+        query += f" AND Country.name = '{country}'"
+
+    query += " ORDER BY Country.name LIMIT 50;"
 
     results = pyhtml.get_results_from_query(db_path, query)
 
-    # dropdowns
+    # Dropdown builder
     def make_options(vals, selected):
         html = '<option value="All">All</option>'
         for v in vals:
@@ -36,13 +45,18 @@ def get_page_html(form_data):
 
     antigen_options = make_options(antigens, antigen)
     year_options = make_options(years, year)
+    country_options = make_options(countries, country)
 
-    rows_html = "".join(
-        f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}%</td></tr>"
-        for r in results
-    ) or "<tr><td colspan='4'>No data</td></tr>"
+    # Table content
+    if results:
+        rows_html = "".join(
+            f"<tr><td>{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td><td>{r[3]}%</td></tr>"
+            for r in results
+        )
+    else:
+        rows_html = "<tr><td colspan='4'>No data</td></tr>"
 
-    # HTML
+    # HTML + CSS
     return f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -77,6 +91,29 @@ def get_page_html(form_data):
                 color: white;
             }}
             tr:nth-child(even) {{ background: #f2f2f2; }}
+            form {{
+                margin-top: 20px;
+            }}
+            label {{
+                font-weight: bold;
+                margin-right: 6px;
+            }}
+            select {{
+                margin: 0 10px;
+                padding: 6px;
+            }}
+            input[type="submit"] {{
+                background-color: #4da6ff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                padding: 8px 16px;
+                cursor: pointer;
+                font-weight: bold;
+            }}
+            input[type="submit"]:hover {{
+                background-color: #3385cc;
+            }}
         </style>
     </head>
     <body>
@@ -88,11 +125,19 @@ def get_page_html(form_data):
                 <a href="page_3.html">Improvements</a>
             </nav>
         </header>
+
         <h1>Vaccination Rates by Country</h1>
 
         <form method="get" action="/page_2.html">
+            <label for="antigen">Antigen:</label>
             <select name="antigen">{antigen_options}</select>
+
+            <label for="year">Year:</label>
             <select name="year">{year_options}</select>
+
+            <label for="country">Country:</label>
+            <select name="country">{country_options}</select>
+
             <input type="submit" value="Filter">
         </form>
 
@@ -105,3 +150,4 @@ def get_page_html(form_data):
     </body>
     </html>
     """
+
